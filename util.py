@@ -2,16 +2,22 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import collections
+import itertools
 import matplotlib.cm
 import matplotlib.pylab as plt
 from matplotlib.collections import LineCollection
 import networkx as nx
 import numpy as np
 import time
+import sklearn
+import sklearn.datasets
 
 
 def create_grid_map(grid_size=10, edge_length=10.,
-                    minimum_time=10., maximum_time=20.):
+                    minimum_time=10., maximum_time=20.,
+                    min_stddev=5., max_stddev=10.,
+                    sparse_covariance=True):
   nx_graph = nx.grid_2d_graph(grid_size, grid_size)
   num_edges = 2 * len(nx_graph.edges())
 
@@ -19,11 +25,17 @@ def create_grid_map(grid_size=10, edge_length=10.,
   mean_times = np.random.rand(num_edges) * (maximum_time - minimum_time) + minimum_time
   # Build covariance.
   s = time.time()
-  print('Creating covariance matrix...')
-  cov_times = random_covariance(num_edges)
+  print('Creating covariance matrix for {} edges...'.format(num_edges))
+  cov_times = random_covariance_v2(num_edges, sparse_covariance=sparse_covariance)
+  stddevs = collections.defaultdict(lambda: np.random.rand() * (max_stddev - min_stddev) + min_stddev)
+  for i in range(num_edges):
+    cov_times[i, i] *= stddevs[i] * stddevs[i]
+    for j in range(i + 1, num_edges):
+      cov_times[i, j] *= stddevs[i] * stddevs[j]
+      cov_times[j, i] *= stddevs[i] * stddevs[j]
   print('Took {} seconds for {} edges'.format(time.time() - s, num_edges))
 
-  graph = nx.MultiDiGraph(mean=mean_times, covariance=cov_times)
+  graph = nx.DiGraph(mean=mean_times, covariance=cov_times)
   node_to_index = {}
   for i, (x, y) in enumerate(nx_graph.nodes()):
     graph.add_node(i, x=float(x) * edge_length, y=float(y) * edge_length)
@@ -32,6 +44,10 @@ def create_grid_map(grid_size=10, edge_length=10.,
     graph.add_edge(node_to_index[u], node_to_index[v], index=2 * i, mean_time=mean_times[i])
     graph.add_edge(node_to_index[v], node_to_index[u], index=2 * i + 1, mean_time=mean_times[i])
   return graph
+
+
+def k_shortest_paths(graph, source, target, k):
+  return list(itertools.islice(nx.shortest_simple_paths(graph, source, target, weight='mean_time'), k))
 
 
 # Method to generate reasonably nice covariance matrices.
@@ -54,6 +70,11 @@ def random_covariance(size, beta=5.):
   s[:, :] = s[permutation, :]
   s[:, :] = s[:, permutation]
   return s
+
+
+def random_covariance_v2(size, sparse_covariance=True):
+  return sklearn.datasets.make_sparse_spd_matrix(
+      dim=size, alpha=0.9 if sparse_covariance else 0., norm_diag=True, smallest_coef=0.1, largest_coef=0.9)
 
 
 def show_edge_time_covariance(graph, ax=None):
