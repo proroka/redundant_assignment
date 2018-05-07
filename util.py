@@ -74,7 +74,7 @@ def random_covariance(size, beta=5.):
 
 def random_covariance_v2(size, sparse_covariance=True):
   return sklearn.datasets.make_sparse_spd_matrix(
-      dim=size, alpha=0.9 if sparse_covariance else 0., norm_diag=True, smallest_coef=0.1, largest_coef=0.9)
+      dim=size, alpha=0.7 if sparse_covariance else 0., norm_diag=True, smallest_coef=0.1, largest_coef=0.9)
 
 
 def show_edge_time_covariance(graph, ax=None):
