@@ -113,7 +113,8 @@ def _random(graph, deployment_size, agents, tasks, num_samples=10,
     available_agents.remove(i)
 
   # Add random assignments.
-  for i in available_agents:
+  nd = min(num_agents - num_tasks, deployment_size - num_tasks)
+  for i in np.random.choice(list(available_agents), size=nd, replace=False):
     j = np.random.randint(num_tasks)
     k = np.random.randint(graph.top_k)
     task_assignments[j].append((i, k))
@@ -132,23 +133,25 @@ def _compute_cost(graph, assignments, agents, tasks, aggregation=MinimumAggregat
     i, k = zip(*assignments[j])
     i = np.array(i, dtype=np.int32)
     k = np.array(k, dtype=np.int32)
-    cost += aggregation.along_axis(samples[i, j, k, :], axis=0).item()
+    cost += np.mean(aggregation.along_axis(samples[i, j, k, :], axis=0)).item()
   return cost
 
 
 class Problem(object):
 
-  def __init__(self, graph, agents, tasks, num_samples=10, aggregation=MinimumAggregation()):
+  def __init__(self, graph, agents, tasks, num_samples=10, num_groundtruth_samples=1,
+               aggregation=MinimumAggregation()):
     self._graph = graph
     self._agents = agents
     self._tasks = tasks
     self._num_samples = num_samples
+    self._num_groundtruth_samples = num_groundtruth_samples
     self._aggregation = aggregation
     self.reset()
 
   def reset(self):
     self._samples = graph.sample(self._agents, self._tasks, self._num_samples)
-    self._gt_sample = graph.sample(self._agents, self._tasks, 1)
+    self._gt_sample = graph.sample(self._agents, self._tasks, self._num_groundtruth_samples)
 
   def hungarian(self, deployment_size=0):
     # Deployment size is ignored.
@@ -179,13 +182,17 @@ if __name__ == '__main__':
   num_tasks = 4
   deployment = 6
   top_k = 3
-  num_samples = 100
+  num_samples = 1000
+  gt_num_samples = 10
+  num_loops = 10
 
   graph = graph_map.GraphMap(graph_size, top_k, sparse_covariance=True)
   agents = np.random.randint(graph.num_nodes, size=num_agents)
   tasks = np.random.randint(graph.num_nodes, size=num_tasks)
 
-  problem = Problem(graph, agents, tasks, num_samples=num_samples, aggregation=MinimumAggregation())
+  problem = Problem(graph, agents, tasks, num_samples=num_samples,
+                    num_groundtruth_samples=gt_num_samples,
+                    aggregation=MinimumAggregation())
 
   # Solve n times.
   costs = {
@@ -193,7 +200,7 @@ if __name__ == '__main__':
       'greedy': [],
       'random': [],
   }
-  for _ in tqdm.tqdm(range(1000)):
+  for _ in tqdm.tqdm(range(num_loops)):
     problem.reset()
     for algorithm, values in costs.iteritems():
       values.append(getattr(problem, algorithm)(deployment))
