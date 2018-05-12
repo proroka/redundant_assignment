@@ -17,16 +17,89 @@ import sklearn.datasets
 def create_grid_map(grid_size=10, edge_length=10.,
                     minimum_time=10., maximum_time=20.,
                     min_stddev=5., max_stddev=10.,
-                    sparse_covariance=True):
+                    covariance_sparsity=.7,
+                    smallest_correlation=.1,
+                    largest_correlation=.9):
   nx_graph = nx.grid_2d_graph(grid_size, grid_size)
-  num_edges = 2 * len(nx_graph.edges())
+  num_edges = len(nx_graph.edges())
+  mean_times, cov_times = random_edges(num_edges, minimum_time, maximum_time, min_stddev,
+                                       max_stddev, covariance_sparsity, smallest_correlation,
+                                       largest_correlation)
 
+  graph = nx.Graph(mean=mean_times, covariance=cov_times)
+  node_to_index = {}
+  for i, (x, y) in enumerate(nx_graph.nodes()):
+    graph.add_node(i, x=float(x) * edge_length, y=float(y) * edge_length)
+    node_to_index[(x, y)] = i
+  for i, (u, v) in enumerate(nx_graph.edges()):
+    graph.add_edge(node_to_index[u], node_to_index[v], index=i, mean_time=mean_times[i])
+  return graph
+
+
+def create_random_graph(num_nodes=10,
+                        minimum_time=10., maximum_time=20.,
+                        min_stddev=5., max_stddev=10.,
+                        covariance_sparsity=.7,
+                        smallest_correlation=.1,
+                        largest_correlation=.9):
+  d = np.sqrt(1. / num_nodes * 3)
+  n_nodes = 0
+  n_tries = 5
+  while n_tries and n_nodes < .9 * num_nodes:
+    nx_graph = nx.random_geometric_graph(num_nodes, d)
+    components = nx.connected_component_subgraphs(nx_graph)
+    nx_graph = max(components, key=len)
+    n_nodes = len(nx_graph.nodes())
+    d *= 1.1
+    n_tries -= 1
+  if n_nodes < .9 * num_nodes:
+    raise ValueError('Not enough connectivity.')
+
+  # Counts trues edges.
+  edges = set()
+  for u, v in nx_graph.edges():
+    if u == v:
+      continue
+    edges.add(tuple(sorted((u, v))))
+  num_edges = len(edges)
+
+  mean_times, cov_times = random_edges(num_edges, minimum_time, maximum_time, min_stddev,
+                                       max_stddev, covariance_sparsity, smallest_correlation,
+                                       largest_correlation)
+  graph = nx.Graph(mean=mean_times, covariance=cov_times)
+  for i, d in nx_graph.nodes(data=True):
+    if 'pos' in d:
+      x, y = d['pos']
+      graph.add_node(i, x=x, y=y)
+    elif 'x' in d:
+      graph.add_node(i, x=d['x'], y=d['y'])
+    else:
+      graph.add_node(i)
+  idx = 0
+  already_added = set()
+  for u, v in nx_graph.edges():
+    u, v = sorted((u, v))
+    if (u, v) not in edges:
+      continue
+    if (u, v) in already_added:
+      continue
+    already_added.add((u, v))
+    graph.add_edge(u, v, index=idx, mean_time=mean_times[idx])
+    idx += 1
+  return graph
+
+
+def random_edges(num_edges, minimum_time=10., maximum_time=20.,
+                 min_stddev=5., max_stddev=10.,
+                 covariance_sparsity=.7,
+                 smallest_correlation=.1,
+                 largest_correlation=.9):
   # Build mean travel time for each edge.
   mean_times = np.random.rand(num_edges) * (maximum_time - minimum_time) + minimum_time
   # Build covariance.
   s = time.time()
   print('Creating covariance matrix for {} edges...'.format(num_edges))
-  cov_times = random_covariance_v2(num_edges, sparse_covariance=sparse_covariance)
+  cov_times = random_covariance_v2(num_edges, covariance_sparsity, smallest_correlation, largest_correlation)
   stddevs = collections.defaultdict(lambda: np.random.rand() * (max_stddev - min_stddev) + min_stddev)
   for i in range(num_edges):
     cov_times[i, i] *= stddevs[i] * stddevs[i]
@@ -34,16 +107,7 @@ def create_grid_map(grid_size=10, edge_length=10.,
       cov_times[i, j] *= stddevs[i] * stddevs[j]
       cov_times[j, i] *= stddevs[i] * stddevs[j]
   print('Took {} seconds for {} edges'.format(time.time() - s, num_edges))
-
-  graph = nx.DiGraph(mean=mean_times, covariance=cov_times)
-  node_to_index = {}
-  for i, (x, y) in enumerate(nx_graph.nodes()):
-    graph.add_node(i, x=float(x) * edge_length, y=float(y) * edge_length)
-    node_to_index[(x, y)] = i
-  for i, (u, v) in enumerate(nx_graph.edges()):
-    graph.add_edge(node_to_index[u], node_to_index[v], index=2 * i, mean_time=mean_times[i])
-    graph.add_edge(node_to_index[v], node_to_index[u], index=2 * i + 1, mean_time=mean_times[i])
-  return graph
+  return mean_times, cov_times
 
 
 def k_shortest_paths(graph, source, target, k):
@@ -72,9 +136,12 @@ def random_covariance(size, beta=5.):
   return s
 
 
-def random_covariance_v2(size, sparse_covariance=True):
+def random_covariance_v2(size, covariance_sparsity=0.7,
+                         smallest_correlation=.1,
+                         largest_correlation=.9):
   return sklearn.datasets.make_sparse_spd_matrix(
-      dim=size, alpha=0.7 if sparse_covariance else 0., norm_diag=True, smallest_coef=0.1, largest_coef=0.9)
+      dim=size, alpha=covariance_sparsity, norm_diag=True,
+      smallest_coef=smallest_correlation, largest_coef=largest_correlation)
 
 
 def show_edge_time_covariance(graph, ax=None):
@@ -85,6 +152,28 @@ def show_edge_time_covariance(graph, ax=None):
 
 
 def show_average_edge_times(graph, ax=None):
+  attrs = set(graph.nodes(data=True)[0][1].keys())
+  if 'pos' in attrs:
+    pos_x = {}
+    pos_y = {}
+    print(graph.nodes(data=True))
+    for u, (x, y) in graph.nodes(data=True).iteritems():
+      pos_x[u] = x
+      pos_y[u] = y
+    print(pos_x, pos_y)
+    nx.set_node_attributes(graph, 'x', pos_x)
+    nx.set_node_attributes(graph, 'y', pos_y)
+
+  if 'x' not in attrs:
+    pos = nx.spring_layout(graph)
+    pos_x = {}
+    pos_y = {}
+    for u, (x, y) in pos.iteritems():
+      pos_x[u] = x
+      pos_y[u] = y
+    nx.set_node_attributes(graph, 'x', pos_x)
+    nx.set_node_attributes(graph, 'y', pos_y)
+
   max_time = 0.
   min_time = float('inf')
   for u, v, data in graph.edges(data=True):
@@ -98,6 +187,13 @@ def show_average_edge_times(graph, ax=None):
   min_x = float('inf')
   max_y = -float('inf')
   min_y = float('inf')
+  points = []
+  for u, data in graph.nodes(data=True):
+    points.append([data['x'], data['y']])
+  points = np.array(points, np.float32)
+  if ax is None:
+    ax = plt.gca()
+  ax.scatter(points[:, 0], points[:, 1], c=(.8, .8, .8), edgecolors='k', zorder=2)
   for u, v, data in graph.edges(data=True):
     # If it has a geometry attribute (ie, a list of line segments)
     if 'geometry' in data:
@@ -119,9 +215,7 @@ def show_average_edge_times(graph, ax=None):
       line = [(x1, y1), (x2, y2)]
       lines.append(line)
     route_colors.append(cmap((data['mean_time'] - min_time) / (max_time - min_time)))
-  if ax is None:
-    ax = plt.gca()
-  lc = LineCollection(lines, colors=route_colors, linewidths=3, alpha=0.5, zorder=3)
+  lc = LineCollection(lines, colors=route_colors, linewidths=1.5, alpha=0.5, zorder=1)
   ax.add_collection(lc)
   margin_x = (max_x - min_x) * .02
   margin_y = (max_y - min_y) * .02

@@ -4,19 +4,24 @@ from __future__ import print_function
 
 import networkx as nx
 import numpy as np
-import time
 
 import util
 
 
 class GraphMap(object):
 
-  def __init__(self, size, top_k=3, sparse_covariance=True):
+  def __init__(self, size, top_k=3, covariance_sparsity=.7, largest_correlation=.9):
     # Create a simple networkx graph for now.
-    self._graph = util.create_grid_map(size, sparse_covariance=sparse_covariance)
+    # self._graph = util.create_grid_map(size, covariance_sparsity=covariance_sparsity)
+    self._graph = util.create_random_graph(size, covariance_sparsity=covariance_sparsity,
+                                           largest_correlation=largest_correlation)
+
     print('Number of nodes: {}, number of edges: {}'.format(
         len(self._graph.nodes()), len(self._graph.edges())))
-    self._edge_indices = nx.get_edge_attributes(self._graph, 'index')
+    self._edge_indices = {}
+    for (u, v), idx in nx.get_edge_attributes(self._graph, 'index').iteritems():
+      self._edge_indices[(u, v)] = idx
+      self._edge_indices[(v, u)] = idx
     # Keep track of top_k paths.
     self._topk = top_k
     self._topk_paths = {}
@@ -96,13 +101,15 @@ class GraphMap(object):
 
 
 if __name__ == '__main__':
-  graph_size = 12
-  num_agents = 20
-  num_tasks = 20
-  top_k = 3
-  num_samples = 100
+  import matplotlib.pylab as plt
 
-  graph = GraphMap(graph_size, top_k, sparse_covariance=True)
-  graph.sample(np.random.randint(graph.num_nodes, size=num_agents),
-               np.random.randint(graph.num_nodes, size=num_tasks),
-               num_samples)
+  graph_size = 200
+  top_k = 3
+  graph = GraphMap(graph_size, top_k, covariance_sparsity=.3,
+                   largest_correlation=.9)
+
+  plt.figure()
+  graph.show_mean()
+  plt.figure()
+  graph.show_covariance()
+  plt.show()

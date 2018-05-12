@@ -31,13 +31,16 @@ class MinimumAggregation(Aggregation):
     super(MinimumAggregation, self).__init__(np.amin, np.argmin, np.minimum)
 
 
+def _get_samples(graph, agents, tasks, num_samples, precomputed_samples=None):
+  if precomputed_samples is None:
+    return num_samples, graph.sample(agents, tasks, num_samples)
+  return precomputed_samples.shape[-1], precomputed_samples
+
+
 def _hungarian(graph, agents, tasks, num_samples=10,
                aggregation=MinimumAggregation(), samples=None):
   # Samples.
-  if samples is None:
-    samples = graph.sample(agents, tasks, num_samples)
-  else:
-    num_samples = samples.shape[-1]
+  num_samples, samples = _get_samples(graph, agents, tasks, num_samples, samples)
   # Run Hungarian assignment on the average travel times of the fastest path.
   mean_travel = np.mean(samples, axis=-1)
   best_paths = aggregation.arg_along_axis(mean_travel, axis=-1)
@@ -49,6 +52,32 @@ def _hungarian(graph, agents, tasks, num_samples=10,
   return task_assignments
 
 
+def _repeated_hungarian(graph, deployment_size, agents, tasks, num_samples=10,
+                        aggregation=MinimumAggregation(), samples=None):
+  num_tasks = len(tasks)
+
+  # Samples.
+  num_samples, samples = _get_samples(graph, agents, tasks, num_samples, samples)
+
+  available_agents = set(range(num_agents))
+  task_assignments = collections.defaultdict(list)
+  for _ in range(deployment_size // num_tasks):
+    agent_map = {}
+    current_agents = []
+    for i, agent_idx in enumerate(available_agents):
+      agent_map[i] = agent_idx
+      current_agents.append(agent_idx)
+    # Run regular Hungarian.
+    mean_travel = np.mean(samples[np.array(current_agents, np.int32), :, :, :], axis=-1)
+    best_paths = aggregation.arg_along_axis(mean_travel, axis=-1)
+    cost_matrix = aggregation.along_axis(mean_travel, axis=-1)  # Pick the fastest path.
+    agent_idx, task_idx = opt.linear_sum_assignment(cost_matrix)
+    for i, j in zip(agent_idx, task_idx):
+      task_assignments[j].append((agent_map[i], best_paths[i, j]))
+      available_agents.remove(agent_map[i])
+  return task_assignments
+
+
 def _greedy_dp(graph, deployment_size, agents, tasks, num_samples=10,
                aggregation=MinimumAggregation(), samples=None):
   num_agents = len(agents)
@@ -56,10 +85,7 @@ def _greedy_dp(graph, deployment_size, agents, tasks, num_samples=10,
   assert num_tasks <= num_agents, 'Not all tasks can be attended to.'
 
   # Samples.
-  if samples is None:
-    samples = graph.sample(agents, tasks, num_samples)
-  else:
-    num_samples = samples.shape[-1]
+  num_samples, samples = _get_samples(graph, agents, tasks, num_samples, samples)
 
   # Run Hungarian assignment on the average travel times of the fastest path.
   task_assignments = _hungarian(graph, agents, tasks, aggregation=aggregation, samples=samples)
@@ -100,10 +126,7 @@ def _random(graph, deployment_size, agents, tasks, num_samples=10,
   num_tasks = len(tasks)
 
   # Samples.
-  if samples is None:
-    samples = graph.sample(agents, tasks, num_samples)
-  else:
-    num_samples = samples.shape[-1]
+  num_samples, samples = _get_samples(graph, agents, tasks, num_samples, samples)
 
   # Run Hungarian assignment on the average travel times of the fastest path.
   task_assignments = _hungarian(graph, agents, tasks, aggregation=aggregation, samples=samples)
@@ -185,10 +208,26 @@ class Problem(object):
     self._samples = graph.sample(self._agents, self._tasks, self._num_samples)
     self._gt_sample = graph.sample(self._agents, self._tasks, self._num_groundtruth_samples)
 
+  def lower_bound(self, deployment_size=0):
+    costs = []
+    for i in range(self._num_groundtruth_samples):
+      s = np.expand_dims(self._gt_sample[:, :, :, i], -1)
+      self._assignments = _hungarian(self._graph, self._agents, self._tasks,
+                                     aggregation=self._aggregation, samples=s)
+      costs.append(_compute_cost(self._graph, self._assignments, self._agents, self._tasks,
+                                 aggregation=self._aggregation, samples=s))
+    return np.mean(costs)
+
   def hungarian(self, deployment_size=0):
     # Deployment size is ignored.
     self._assignments = _hungarian(self._graph, self._agents, self._tasks,
                                    aggregation=self._aggregation, samples=self._samples)
+    return _compute_cost(self._graph, self._assignments, self._agents, self._tasks,
+                         aggregation=self._aggregation, samples=self._gt_sample)
+
+  def repeated_hungarian(self, deployment_size):
+    self._assignments = _repeated_hungarian(self._graph, deployment_size, self._agents, self._tasks,
+                                            aggregation=self._aggregation, samples=self._samples)
     return _compute_cost(self._graph, self._assignments, self._agents, self._tasks,
                          aggregation=self._aggregation, samples=self._gt_sample)
 
@@ -219,16 +258,16 @@ if __name__ == '__main__':
   import graph_map
   import tqdm
 
-  graph_size = 12
+  graph_size = 200
   num_agents = 20
-  num_tasks = 4
-  deployment = 6
+  num_tasks = 5
+  deployment = 15
   top_k = 3
-  num_samples = 1000
+  num_samples = 200
   gt_num_samples = 10
   num_loops = 10
 
-  graph = graph_map.GraphMap(graph_size, top_k, sparse_covariance=True)
+  graph = graph_map.GraphMap(graph_size, top_k, covariance_sparsity=.3)
   agents = np.random.randint(graph.num_nodes, size=num_agents)
   tasks = np.random.randint(graph.num_nodes, size=num_tasks)
 
@@ -238,7 +277,9 @@ if __name__ == '__main__':
 
   # Solve n times.
   costs = {
+      'lower_bound': ([], []),
       'hungarian': ([], []),
+      'repeated_hungarian': ([], []),
       'greedy': ([], []),
       'random': ([], []),
       'no_correlation_greedy': ([], []),
