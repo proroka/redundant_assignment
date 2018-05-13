@@ -91,7 +91,7 @@ def _greedy_dp(graph, deployment_size, agents, tasks, num_samples=10,
   task_assignments = _hungarian(graph, agents, tasks, aggregation=aggregation, samples=samples)
   task_state = np.empty((num_tasks, num_samples))
   available_agents = set(range(num_agents))
-  for j, assignment in task_assignments.iteritems():
+  for j, assignment in task_assignments.items():
     assert len(assignment) == 1, 'Hungarian issue'
     i, k = assignment[0]
     available_agents.remove(i)
@@ -131,7 +131,7 @@ def _random(graph, deployment_size, agents, tasks, num_samples=10,
   # Run Hungarian assignment on the average travel times of the fastest path.
   task_assignments = _hungarian(graph, agents, tasks, aggregation=aggregation, samples=samples)
   available_agents = set(range(num_agents))
-  for j, assignment in task_assignments.iteritems():
+  for j, assignment in task_assignments.items():
     assert len(assignment) == 1, 'Hungarian issue'
     i, k = assignment[0]
     available_agents.remove(i)
@@ -165,7 +165,7 @@ def _average_coalition_correlation(graph, assignments, agents, tasks):
   corrs = 0.
   total = 0
   graph.sample_edges(100)
-  for j, assignments in assignments.iteritems():
+  for j, assignments in assignments.items():
     if len(assignments) <= 1:
       continue
     corr = 0.
@@ -286,9 +286,9 @@ if __name__ == '__main__':
   }
   for _ in tqdm.tqdm(range(num_loops)):
     problem.reset()
-    for algorithm, (values, corrs) in costs.iteritems():
+    for algorithm, (values, corrs) in costs.items():
       values.append(getattr(problem, algorithm)(deployment))
       corrs.append(problem.get_correlation())
 
-  for algorithm, (values, corrs) in costs.iteritems():
+  for algorithm, (values, corrs) in costs.items():
     print('Cost (%s): %g - correlation: %g' % (algorithm, np.mean(values), np.mean(corrs)))
