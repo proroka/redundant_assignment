@@ -19,12 +19,13 @@ import graph_map
 import problem
 
 _NUM_AGENTS = 25
+_NUM_HUBS = 5
 _NUM_TASKS = 5
 _NUM_NODES = 200
 _NUM_GRAPHS = 100
 _NUM_SAMPLES = 200
 _NUM_SAMPLES_GT = 10
-_NUM_THREADS = 8
+_NUM_THREADS = 24
 
 # Variable.
 if False:
@@ -68,8 +69,8 @@ def run_problem(filename, arguments):
   graph = graph_map.GraphMap(_NUM_NODES, arguments.top_k,
                              covariance_sparsity=arguments.correlation_sparsity,
                              largest_correlation=arguments.correlation_strength)
-  agents = np.random.randint(graph.num_nodes, size=_NUM_AGENTS)
-  tasks = np.random.randint(graph.num_nodes, size=_NUM_TASKS)
+  agents = np.random.randint(_NUM_HUBS, size=_NUM_AGENTS)
+  tasks = np.random.randint(_NUM_HUBS, graph.num_nodes, size=_NUM_TASKS)
   p = problem.Problem(graph, agents, tasks, num_samples=_NUM_SAMPLES,
                       num_groundtruth_samples=_NUM_SAMPLES_GT,
                       aggregation=problem.MinimumAggregation())

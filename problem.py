@@ -268,12 +268,17 @@ if __name__ == '__main__':
   deployment = 20
   top_k = 3
   num_samples = 200
-  gt_num_samples = 7
+  gt_num_samples = 10
   num_loops = 10
 
-  graph = graph_map.GraphMap(graph_size, top_k, covariance_sparsity=.3)
-  agents = np.random.randint(graph.num_nodes, size=num_agents)
-  tasks = np.random.randint(graph.num_nodes, size=num_tasks)
+  covariance_sparsity = .3
+  covariance_strengh = .9
+  num_hubs = 5
+
+  graph = graph_map.GraphMap(graph_size, top_k, covariance_sparsity=covariance_sparsity,
+                             largest_correlation=covariance_strengh)
+  agents = np.random.randint(num_hubs, size=num_agents)
+  tasks = np.random.randint(num_hubs, graph.num_nodes, size=num_tasks)
 
   problem = Problem(graph, agents, tasks, num_samples=num_samples,
                     num_groundtruth_samples=gt_num_samples,

@@ -42,7 +42,7 @@ def create_random_graph(num_nodes=10,
                         covariance_sparsity=.7,
                         smallest_correlation=.1,
                         largest_correlation=.9):
-  d = np.sqrt(1. / num_nodes * 3)
+  d = np.sqrt(1. / num_nodes * 2)
   n_nodes = 0
   n_tries = 5
   while n_tries and n_nodes < .9 * num_nodes:
@@ -155,7 +155,7 @@ def show_edge_time_covariance(graph, ax=None):
 
 
 def show_average_edge_times(graph, ax=None):
-  attrs = set(graph.nodes(data=True)[0][1].keys())
+  attrs = set(graph.nodes(data=True)[0].keys())
   if 'pos' in attrs:
     pos_x = {}
     pos_y = {}
@@ -197,6 +197,15 @@ def show_average_edge_times(graph, ax=None):
   if ax is None:
     ax = plt.gca()
   ax.scatter(points[:, 0], points[:, 1], c=(.8, .8, .8), edgecolors='k', zorder=2)
+
+  # Plot hubs.
+  points = []
+  for i in range(5):
+    data = graph.nodes(data=True)[i]
+    points.append([data['x'], data['y']])
+  points = np.array(points, np.float32)
+  ax.scatter(points[:, 0], points[:, 1], c='r', edgecolors='k', zorder=2)
+
   for u, v, data in graph.edges(data=True):
     # If it has a geometry attribute (ie, a list of line segments)
     if 'geometry' in data:
