@@ -54,6 +54,7 @@ def _hungarian(graph, agents, tasks, num_samples=10,
 
 def _repeated_hungarian(graph, deployment_size, agents, tasks, num_samples=10,
                         aggregation=MinimumAggregation(), samples=None):
+  num_agents = len(agents)
   num_tasks = len(tasks)
 
   # Samples.
@@ -123,6 +124,7 @@ def _greedy_dp(graph, deployment_size, agents, tasks, num_samples=10,
 
 def _random(graph, deployment_size, agents, tasks, num_samples=10,
             aggregation=MinimumAggregation(), samples=None):
+  num_agents = len(agents)
   num_tasks = len(tasks)
 
   # Samples.
@@ -145,20 +147,22 @@ def _random(graph, deployment_size, agents, tasks, num_samples=10,
   return task_assignments
 
 
-def _compute_cost(graph, assignments, agents, tasks, aggregation=MinimumAggregation(),
-                  samples=None):
+def _compute_costs(graph, assignments, agents, tasks, aggregation=MinimumAggregation(),
+                   samples=None):
   if samples is None:
     samples = graph.sample(agents, tasks, 1)
+  num_samples = samples.shape[-1]
 
-  cost = 0.
   num_tasks = len(tasks)
+  costs = np.zeros(num_samples, np.float32)
   for j in range(num_tasks):
     assert j in assignments, 'Bad assignments'
     i, k = zip(*assignments[j])
     i = np.array(i, dtype=np.int32)
     k = np.array(k, dtype=np.int32)
-    cost += np.mean(aggregation.along_axis(samples[i, j, k, :], axis=0)).item()
-  return cost
+    costs += aggregation.along_axis(samples[i, j, k, :], axis=0)
+  costs /= num_tasks
+  return costs
 
 
 def _average_coalition_correlation(graph, assignments, agents, tasks):
@@ -205,50 +209,50 @@ class Problem(object):
     self.reset()
 
   def reset(self):
-    self._samples = graph.sample(self._agents, self._tasks, self._num_samples)
-    self._gt_sample = graph.sample(self._agents, self._tasks, self._num_groundtruth_samples)
+    self._samples = self._graph.sample(self._agents, self._tasks, self._num_samples)
+    self._gt_sample = self._graph.sample(self._agents, self._tasks, self._num_groundtruth_samples)
 
   def lower_bound(self, deployment_size=0):
-    costs = []
+    costs = np.zeros(self._num_groundtruth_samples, np.float32)
     for i in range(self._num_groundtruth_samples):
       s = np.expand_dims(self._gt_sample[:, :, :, i], -1)
       self._assignments = _hungarian(self._graph, self._agents, self._tasks,
                                      aggregation=self._aggregation, samples=s)
-      costs.append(_compute_cost(self._graph, self._assignments, self._agents, self._tasks,
-                                 aggregation=self._aggregation, samples=s))
-    return np.mean(costs)
+      costs[i] = _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
+                                aggregation=self._aggregation, samples=s).item()
+    return costs
 
   def hungarian(self, deployment_size=0):
     # Deployment size is ignored.
     self._assignments = _hungarian(self._graph, self._agents, self._tasks,
                                    aggregation=self._aggregation, samples=self._samples)
-    return _compute_cost(self._graph, self._assignments, self._agents, self._tasks,
-                         aggregation=self._aggregation, samples=self._gt_sample)
+    return _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
+                          aggregation=self._aggregation, samples=self._gt_sample)
 
   def repeated_hungarian(self, deployment_size):
     self._assignments = _repeated_hungarian(self._graph, deployment_size, self._agents, self._tasks,
                                             aggregation=self._aggregation, samples=self._samples)
-    return _compute_cost(self._graph, self._assignments, self._agents, self._tasks,
-                         aggregation=self._aggregation, samples=self._gt_sample)
+    return _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
+                          aggregation=self._aggregation, samples=self._gt_sample)
 
   def greedy(self, deployment_size):
     self._assignments = _greedy_dp(self._graph, deployment_size, self._agents, self._tasks,
                                    aggregation=self._aggregation, samples=self._samples)
-    return _compute_cost(self._graph, self._assignments, self._agents, self._tasks,
-                         aggregation=self._aggregation, samples=self._gt_sample)
+    return _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
+                          aggregation=self._aggregation, samples=self._gt_sample)
 
   def no_correlation_greedy(self, deployment_size):
-    samples = graph.sample(self._agents, self._tasks, self._num_samples, ignore_correlations=True)
+    samples = self._graph.sample(self._agents, self._tasks, self._num_samples, ignore_correlations=True)
     self._assignments = _greedy_dp(self._graph, deployment_size, self._agents, self._tasks,
                                    aggregation=self._aggregation, samples=samples)
-    return _compute_cost(self._graph, self._assignments, self._agents, self._tasks,
-                         aggregation=self._aggregation, samples=self._gt_sample)
+    return _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
+                          aggregation=self._aggregation, samples=self._gt_sample)
 
   def random(self, deployment_size):
     self._assignments = _random(self._graph, deployment_size, self._agents, self._tasks,
                                 aggregation=self._aggregation, samples=self._samples)
-    return _compute_cost(self._graph, self._assignments, self._agents, self._tasks,
-                         aggregation=self._aggregation, samples=self._gt_sample)
+    return _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
+                          aggregation=self._aggregation, samples=self._gt_sample)
 
   def get_correlation(self):
     return _average_coalition_correlation(self._graph, self._assignments, self._agents, self._tasks)
@@ -259,12 +263,12 @@ if __name__ == '__main__':
   import tqdm
 
   graph_size = 200
-  num_agents = 20
+  num_agents = 25
   num_tasks = 5
-  deployment = 15
+  deployment = 20
   top_k = 3
   num_samples = 200
-  gt_num_samples = 10
+  gt_num_samples = 7
   num_loops = 10
 
   graph = graph_map.GraphMap(graph_size, top_k, covariance_sparsity=.3)
@@ -276,7 +280,7 @@ if __name__ == '__main__':
                     aggregation=MinimumAggregation())
 
   # Solve n times.
-  costs = {
+  results = {
       'lower_bound': ([], []),
       'hungarian': ([], []),
       'repeated_hungarian': ([], []),
@@ -286,9 +290,11 @@ if __name__ == '__main__':
   }
   for _ in tqdm.tqdm(range(num_loops)):
     problem.reset()
-    for algorithm, (values, corrs) in costs.items():
-      values.append(getattr(problem, algorithm)(deployment))
-      corrs.append(problem.get_correlation())
+    for algorithm, (costs, correlations) in results.items():
+      cost = getattr(problem, algorithm)(deployment)
+      correlation = problem.get_correlation()
+      costs.extend(cost)
+      correlations.append(correlation)
 
-  for algorithm, (values, corrs) in costs.items():
-    print('Cost (%s): %g - correlation: %g' % (algorithm, np.mean(values), np.mean(corrs)))
+  for algorithm, (costs, correlations) in results.items():
+    print('Cost (%s): %g - correlation: %g' % (algorithm, np.mean(costs), np.mean(correlations)))

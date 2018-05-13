@@ -55,6 +55,12 @@ def create_random_graph(num_nodes=10,
   if n_nodes < .9 * num_nodes:
     raise ValueError('Not enough connectivity.')
 
+  # Rename nodes.
+  node_idx = {}
+  for i, idx in enumerate(nx_graph.nodes()):
+    node_idx[idx] = i
+  nx.relabel_nodes(nx_graph, node_idx, copy=False)
+
   # Counts trues edges.
   edges = set()
   for u, v in nx_graph.edges():
@@ -97,8 +103,6 @@ def random_edges(num_edges, minimum_time=10., maximum_time=20.,
   # Build mean travel time for each edge.
   mean_times = np.random.rand(num_edges) * (maximum_time - minimum_time) + minimum_time
   # Build covariance.
-  s = time.time()
-  print('Creating covariance matrix for {} edges...'.format(num_edges))
   cov_times = random_covariance_v2(num_edges, covariance_sparsity, smallest_correlation, largest_correlation)
   stddevs = collections.defaultdict(lambda: np.random.rand() * (max_stddev - min_stddev) + min_stddev)
   for i in range(num_edges):
@@ -106,7 +110,6 @@ def random_edges(num_edges, minimum_time=10., maximum_time=20.,
     for j in range(i + 1, num_edges):
       cov_times[i, j] *= stddevs[i] * stddevs[j]
       cov_times[j, i] *= stddevs[i] * stddevs[j]
-  print('Took {} seconds for {} edges'.format(time.time() - s, num_edges))
   return mean_times, cov_times
 
 

@@ -12,12 +12,8 @@ class GraphMap(object):
 
   def __init__(self, size, top_k=3, covariance_sparsity=.7, largest_correlation=.9):
     # Create a simple networkx graph for now.
-    # self._graph = util.create_grid_map(size, covariance_sparsity=covariance_sparsity)
     self._graph = util.create_random_graph(size, covariance_sparsity=covariance_sparsity,
                                            largest_correlation=largest_correlation)
-
-    print('Number of nodes: {}, number of edges: {}'.format(
-        len(self._graph.nodes()), len(self._graph.edges())))
     self._edge_indices = {}
     for (u, v), idx in nx.get_edge_attributes(self._graph, 'index').items():
       self._edge_indices[(u, v)] = idx
