@@ -19,7 +19,7 @@ class GraphMap(object):
     print('Number of nodes: {}, number of edges: {}'.format(
         len(self._graph.nodes()), len(self._graph.edges())))
     self._edge_indices = {}
-    for (u, v), idx in nx.get_edge_attributes(self._graph, 'index').iteritems():
+    for (u, v), idx in nx.get_edge_attributes(self._graph, 'index').items():
       self._edge_indices[(u, v)] = idx
       self._edge_indices[(v, u)] = idx
     # Keep track of top_k paths.
