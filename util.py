@@ -9,7 +9,6 @@ import matplotlib.pylab as plt
 from matplotlib.collections import LineCollection
 import networkx as nx
 import numpy as np
-import time
 import sklearn
 import sklearn.datasets
 
@@ -142,9 +141,11 @@ def random_covariance(size, beta=5.):
 def random_covariance_v2(size, covariance_sparsity=0.7,
                          smallest_correlation=.1,
                          largest_correlation=.9):
-  return sklearn.datasets.make_sparse_spd_matrix(
-      dim=size, alpha=covariance_sparsity, norm_diag=True,
+  # Only consider positive correlation.
+  c = sklearn.datasets.make_sparse_spd_matrix(
+      dim=size, alpha=sparsity, norm_diag=True,
       smallest_coef=smallest_correlation, largest_coef=largest_correlation)
+  return np.maximum(c, 0.)
 
 
 def show_edge_time_covariance(graph, ax=None):
