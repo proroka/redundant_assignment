@@ -143,7 +143,7 @@ def random_covariance_v2(size, covariance_sparsity=0.7,
                          largest_correlation=.9):
   # Only consider positive correlation.
   c = sklearn.datasets.make_sparse_spd_matrix(
-      dim=size, alpha=sparsity, norm_diag=True,
+      dim=size, alpha=covariance_sparsity, norm_diag=True,
       smallest_coef=smallest_correlation, largest_coef=largest_correlation)
   return np.maximum(c, 0.)
 
