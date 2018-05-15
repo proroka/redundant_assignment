@@ -10,9 +10,9 @@ import util
 
 class GraphMap(object):
 
-  def __init__(self, size, top_k=3, covariance_sparsity=.7, largest_correlation=.9):
+  def __init__(self, size, top_k=3, largest_correlation=.9):
     # Create a simple networkx graph for now.
-    self._graph = util.create_random_graph(size, covariance_sparsity=covariance_sparsity,
+    self._graph = util.create_random_graph(size, smallest_correlation=0.,
                                            largest_correlation=largest_correlation)
     self._edge_indices = {}
     for (u, v), idx in nx.get_edge_attributes(self._graph, 'index').items():
@@ -101,8 +101,7 @@ if __name__ == '__main__':
 
   graph_size = 200
   top_k = 3
-  graph = GraphMap(graph_size, top_k, covariance_sparsity=.3,
-                   largest_correlation=.9)
+  graph = GraphMap(graph_size, top_k, largest_correlation=.4)
 
   plt.figure()
   graph.show_mean()

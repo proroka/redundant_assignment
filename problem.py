@@ -275,8 +275,7 @@ if __name__ == '__main__':
   covariance_strengh = .9
   num_hubs = 5
 
-  graph = graph_map.GraphMap(graph_size, top_k, covariance_sparsity=covariance_sparsity,
-                             largest_correlation=covariance_strengh)
+  graph = graph_map.GraphMap(graph_size, top_k, largest_correlation=covariance_strengh)
   agents = np.random.randint(num_hubs, size=num_agents)
   tasks = np.random.randint(num_hubs, graph.num_nodes, size=num_tasks)
 

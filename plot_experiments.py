@@ -37,6 +37,7 @@ def read_results(filename):
 
 def run(filename):
   original_data = read_results(filename)
+  argument_class = launch_experiments.OldArguments
 
   # Reconverts keys to arguments and make numpy arrays.
   data = {}
@@ -45,22 +46,22 @@ def run(filename):
     for algorithm, (costs, correlations) in v.items():
       algorithm_data[algorithm] = Data(np.array(costs, np.float32),
                                        np.array(correlations, np.float32))
-    data[launch_experiments.Arguments(*k)] = algorithm_data
+    data[argument_class(*k)] = algorithm_data
 
   # Get baseline values.
-  defaults = launch_experiments.Arguments()
+  defaults = argument_class()
 
   # Values for the x-axis.
   x_axes = collections.defaultdict(set)
 
   # Gather possible plots.
   for k in data:
-    for field in launch_experiments.Arguments._fields:
+    for field in argument_class._fields:
       d = getattr(defaults, field)
       v = getattr(k, field)
       if d != v:
         # Verify that all other fields are the same.
-        for other_field in launch_experiments.Arguments._fields:
+        for other_field in argument_class._fields:
           if other_field == field:
             continue
           if getattr(defaults, other_field) != getattr(k, other_field):
@@ -73,25 +74,42 @@ def run(filename):
     # Sorted x values.
     x_values = sorted(x_axis_values)
     # Get y values.
-    y_values = collections.defaultdict(list)
-    y_stds = collections.defaultdict(list)
+    y_cost_values = collections.defaultdict(list)
+    y_cost_stds = collections.defaultdict(list)
+    y_corr_values = collections.defaultdict(list)
+    y_corr_stds = collections.defaultdict(list)
+
     for x_axis_value in x_values:
-      k = launch_experiments.Arguments(**{x_axis_label: x_axis_value})
+      k = argument_class(**{x_axis_label: x_axis_value})
       l = data[k][_LOWER_BOUND].costs
       for algorithm, values in data[k].items():
         y = values.costs / l
-        y_values[algorithm].append(np.mean(y))
-        y_stds[algorithm].append(np.std(y))
+        y_cost_values[algorithm].append(np.mean(y))
+        y_cost_stds[algorithm].append(np.std(y))
+        y = values.correlations
+        y_corr_values[algorithm].append(np.mean(y))
+        y_corr_stds[algorithm].append(np.std(y))
 
     plt.figure()
-    for algorithm, values in y_values.items():
+    for algorithm, values in y_cost_values.items():
       v = np.array(values, np.float32)
-      s = np.array(y_stds[algorithm], np.float32)
+      s = np.array(y_cost_stds[algorithm], np.float32)
       ls = _LINESTYLE[algorithm] if algorithm in _LINESTYLE else _DEFAULT_LINESTYLE
       plt.plot(x_values, v, linestyle=ls, color=_COLORS[algorithm], lw=2, label=algorithm, marker='o', ms=8)
       plt.fill_between(x_values, v - s, v + s, facecolor=_COLORS[algorithm], alpha=.5)
     plt.xlabel(x_axis_label)
     plt.ylabel('cost')
+    plt.legend()
+
+    plt.figure()
+    for algorithm, values in y_corr_values.items():
+      v = np.array(values, np.float32)
+      s = np.array(y_corr_stds[algorithm], np.float32)
+      ls = _LINESTYLE[algorithm] if algorithm in _LINESTYLE else _DEFAULT_LINESTYLE
+      plt.plot(x_values, v, linestyle=ls, color=_COLORS[algorithm], lw=2, label=algorithm, marker='o', ms=8)
+      plt.fill_between(x_values, v - s, v + s, facecolor=_COLORS[algorithm], alpha=.5)
+    plt.xlabel(x_axis_label)
+    plt.ylabel('correlation')
     plt.legend()
   plt.show()
 

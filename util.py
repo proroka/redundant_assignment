@@ -9,6 +9,7 @@ import matplotlib.pylab as plt
 from matplotlib.collections import LineCollection
 import networkx as nx
 import numpy as np
+import numba as nb
 import sklearn
 import sklearn.datasets
 
@@ -16,14 +17,12 @@ import sklearn.datasets
 def create_grid_map(grid_size=10, edge_length=10.,
                     minimum_time=10., maximum_time=20.,
                     min_stddev=5., max_stddev=10.,
-                    covariance_sparsity=.7,
                     smallest_correlation=.1,
                     largest_correlation=.9):
   nx_graph = nx.grid_2d_graph(grid_size, grid_size)
   num_edges = len(nx_graph.edges())
   mean_times, cov_times = random_edges(num_edges, minimum_time, maximum_time, min_stddev,
-                                       max_stddev, covariance_sparsity, smallest_correlation,
-                                       largest_correlation)
+                                       max_stddev, smallest_correlation, largest_correlation)
 
   graph = nx.Graph(mean=mean_times, covariance=cov_times)
   node_to_index = {}
@@ -38,7 +37,6 @@ def create_grid_map(grid_size=10, edge_length=10.,
 def create_random_graph(num_nodes=10,
                         minimum_time=10., maximum_time=20.,
                         min_stddev=5., max_stddev=10.,
-                        covariance_sparsity=.7,
                         smallest_correlation=.1,
                         largest_correlation=.9):
   d = np.sqrt(1. / num_nodes * 2)
@@ -69,8 +67,7 @@ def create_random_graph(num_nodes=10,
   num_edges = len(edges)
 
   mean_times, cov_times = random_edges(num_edges, minimum_time, maximum_time, min_stddev,
-                                       max_stddev, covariance_sparsity, smallest_correlation,
-                                       largest_correlation)
+                                       max_stddev, smallest_correlation, largest_correlation)
   graph = nx.Graph(mean=mean_times, covariance=cov_times)
   for i, d in nx_graph.nodes(data=True):
     if 'pos' in d:
@@ -96,13 +93,13 @@ def create_random_graph(num_nodes=10,
 
 def random_edges(num_edges, minimum_time=10., maximum_time=20.,
                  min_stddev=5., max_stddev=10.,
-                 covariance_sparsity=.7,
                  smallest_correlation=.1,
                  largest_correlation=.9):
   # Build mean travel time for each edge.
   mean_times = np.random.rand(num_edges) * (maximum_time - minimum_time) + minimum_time
   # Build covariance.
-  cov_times = random_covariance_v2(num_edges, covariance_sparsity, smallest_correlation, largest_correlation)
+  cov_times = random_covariance(num_edges, smallest_correlation, largest_correlation,
+                                positive_correlation_only=True)
   stddevs = collections.defaultdict(lambda: np.random.rand() * (max_stddev - min_stddev) + min_stddev)
   for i in range(num_edges):
     cov_times[i, i] *= stddevs[i] * stddevs[i]
@@ -118,19 +115,32 @@ def k_shortest_paths(graph, source, target, k):
 
 # Method to generate reasonably nice covariance matrices.
 # See https://stats.stackexchange.com/questions/124538/how-to-generate-a-large-full-rank-random-correlation-matrix-with-some-strong-cor
-def random_covariance(size, beta=5.):
-  p = np.random.beta(beta, beta, size=(size, size))  # Storing partial correletions.
-  p = 2 * p - 1.  # Shift between -1 and 1.
+def random_covariance(size,
+                      smallest_correlation=.1,
+                      largest_correlation=.9,
+                      beta=5.,
+                      positive_correlation_only=False):
+  @nb.jit(nopython=True)
+  def _helper(p):
+    s = np.zeros((size, size))
+    for k in range(size - 1):
+      for i in range(k + 1, size):
+        cov = p[k, i]
+        for l in range(k - 1, -1, -1):
+          cov *= np.sqrt((1. - p[l, i] ** 2.) * (1. - p[l, k] ** 2.))
+          cov += p[l, i] * p[l, k]
+        s[k, i] = cov
+        s[i, k] = cov
+    return s
 
-  s = np.identity(size)
-  for k in range(size - 1):
-    for i in range(k + 1, size):
-      cov = p[k, i]
-      for l in range(k - 1, -1, -1):
-        cov *= np.sqrt((1. - p[l, i] ** 2.) * (1. - p[l, k] ** 2.))
-        cov += p[l, i] * p[l, k]
-      s[k, i] = cov
-      s[i, k] = cov
+  p = np.random.beta(beta, beta, size=(size, size))  # Storing partial correletions.
+  if not positive_correlation_only:
+    p = 2 * p - 1.  # Shift between -1 and 1.
+  s = _helper(p)
+  max_value = np.max(np.abs(s))
+  min_value = np.min(np.abs(s))
+  s = (s - min_value) / (max_value - min_value) * (largest_correlation - smallest_correlation) + smallest_correlation
+  np.fill_diagonal(s, 1.)
   # Random permutation.
   permutation = np.random.permutation(size)
   s[:, :] = s[permutation, :]
@@ -142,10 +152,9 @@ def random_covariance_v2(size, covariance_sparsity=0.7,
                          smallest_correlation=.1,
                          largest_correlation=.9):
   # Only consider positive correlation.
-  c = sklearn.datasets.make_sparse_spd_matrix(
+  return sklearn.datasets.make_sparse_spd_matrix(
       dim=size, alpha=covariance_sparsity, norm_diag=True,
       smallest_coef=smallest_correlation, largest_coef=largest_correlation)
-  return np.maximum(c, 0.)
 
 
 def show_edge_time_covariance(graph, ax=None):

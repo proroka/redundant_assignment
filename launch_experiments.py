@@ -28,28 +28,23 @@ _NUM_SAMPLES_GT = 10
 _NUM_THREADS = 24
 
 # Variable.
-if False:
-  _CORRELATION_SPARSITY = []
-  _CORRELATION_STRENGTH = []
-  _DEPLOYMENT_SIZE = []
-  _TOP_K = [16]
-else:
-  _CORRELATION_SPARSITY = np.linspace(0., 1., 11).tolist()
-  _CORRELATION_STRENGTH = np.linspace(.1, .9, 9).tolist()
-  _DEPLOYMENT_SIZE = range(_NUM_TASKS, _NUM_AGENTS + 1, 2)
-  _TOP_K = [1, 2, 4, 8, 16]
+_CORRELATION_STRENGTH = np.linspace(.1, .9, 9).tolist()
+_DEPLOYMENT_SIZE = range(_NUM_TASKS, _NUM_AGENTS + 1, 2)
+_TOP_K = [1, 2, 4, 8, 16]
 
 # Fixed.
-_BASE_CORRELATION_SPARSITY = .3
 _BASE_CORRELATION_STRENGTH = .9
 _BASE_DEPLOYMENT_SIZE = 20
 _BASE_TOP_K = 4
 
 
 Arguments = collections.namedtuple('Arguments', [
+    'deployment_size', 'top_k', 'correlation_strength'])
+Arguments.__new__.__defaults__ = (_BASE_DEPLOYMENT_SIZE, _BASE_TOP_K, _BASE_CORRELATION_STRENGTH)
+
+OldArguments = collections.namedtuple('OldArguments', [
     'deployment_size', 'top_k', 'correlation_sparsity', 'correlation_strength'])
-Arguments.__new__.__defaults__ = (_BASE_DEPLOYMENT_SIZE, _BASE_TOP_K, _BASE_CORRELATION_SPARSITY,
-                                  _BASE_CORRELATION_STRENGTH)
+OldArguments.__new__.__defaults__ = (_BASE_DEPLOYMENT_SIZE, _BASE_TOP_K, .3, _BASE_CORRELATION_STRENGTH)
 
 
 def store_results(results, filename):
@@ -67,7 +62,6 @@ def read_results(filename):
 
 def run_problem(filename, arguments):
   graph = graph_map.GraphMap(_NUM_NODES, arguments.top_k,
-                             covariance_sparsity=arguments.correlation_sparsity,
                              largest_correlation=arguments.correlation_strength)
   agents = np.random.randint(_NUM_HUBS, size=_NUM_AGENTS)
   tasks = np.random.randint(_NUM_HUBS, graph.num_nodes, size=_NUM_TASKS)
@@ -128,8 +122,6 @@ def run(final_filename):
     args.add(Arguments(deployment_size=d))
   for top_k in _TOP_K:
     args.add(Arguments(top_k=top_k))
-  for correlation_sparsity in _CORRELATION_SPARSITY:
-    args.add(Arguments(correlation_sparsity=correlation_sparsity))
   for correlation_strength in _CORRELATION_STRENGTH:
     args.add(Arguments(correlation_strength=correlation_strength))
   all_args = []
@@ -186,7 +178,6 @@ if __name__ == '__main__':
     run_problem(args.output,
                 Arguments(args.deployment_size,
                           args.top_k,
-                          args.correlation_sparsity,
                           args.correlation_strength))
   else:
     assert args.output_results, 'Must specify --output_results'
