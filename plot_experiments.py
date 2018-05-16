@@ -37,11 +37,17 @@ def read_results(filename):
 
 def run(filename):
   original_data = read_results(filename)
-  argument_class = launch_experiments.OldArguments
+  argument_class = None
 
   # Reconverts keys to arguments and make numpy arrays.
   data = {}
   for k, v in original_data.items():
+    if len(k) == 3 and argument_class is None:
+      argument_class = launch_experiments.Arguments
+    elif len(k) == 4 and argument_class is None:
+      argument_class = launch_experiments.OldArguments
+    if argument_class is None:
+      raise ValueError('Unsupported data format.')
     algorithm_data = {}
     for algorithm, (costs, correlations) in v.items():
       algorithm_data[algorithm] = Data(np.array(costs, np.float32),
@@ -83,7 +89,7 @@ def run(filename):
       k = argument_class(**{x_axis_label: x_axis_value})
       l = data[k][_LOWER_BOUND].costs
       for algorithm, values in data[k].items():
-        y = values.costs / l
+        y = values.costs / (l + 1e-10)
         y_cost_values[algorithm].append(np.mean(y))
         y_cost_stds[algorithm].append(np.std(y))
         y = values.correlations
