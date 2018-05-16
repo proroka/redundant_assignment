@@ -101,7 +101,7 @@ if __name__ == '__main__':
 
   graph_size = 200
   top_k = 3
-  graph = GraphMap(graph_size, top_k, largest_correlation=.4)
+  graph = GraphMap(graph_size, top_k, largest_correlation=.9)
 
   plt.figure()
   graph.show_mean()

@@ -98,8 +98,7 @@ def random_edges(num_edges, minimum_time=10., maximum_time=20.,
   # Build mean travel time for each edge.
   mean_times = np.random.rand(num_edges) * (maximum_time - minimum_time) + minimum_time
   # Build covariance.
-  cov_times = random_covariance(num_edges, smallest_correlation, largest_correlation,
-                                positive_correlation_only=False)
+  cov_times = random_covariance_v2(num_edges, 0.6, smallest_correlation, largest_correlation)
   stddevs = collections.defaultdict(lambda: np.random.rand() * (max_stddev - min_stddev) + min_stddev)
   for i in range(num_edges):
     cov_times[i, i] *= stddevs[i] * stddevs[i]
