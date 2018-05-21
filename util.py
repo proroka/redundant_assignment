@@ -191,6 +191,8 @@ def show_average_edge_times(graph, ax=None):
   for u, v, data in graph.edges(data=True):
     max_time = max(data['mean_time'], max_time)
     min_time = min(data['mean_time'], min_time)
+  min_time = np.round(min_time)
+  max_time = np.round(max_time)
   # Go through all edges in graph, append with corresponding color from map
   cmap = matplotlib.cm.get_cmap('RdYlGn')
   lines = []
@@ -209,7 +211,7 @@ def show_average_edge_times(graph, ax=None):
 
   # Plot hubs.
   points = []
-  for i in range(5):
+  for i in range(10):
     data = graph.nodes(data=True)[i]
     points.append([data['x'], data['y']])
   points = np.array(points, np.float32)
