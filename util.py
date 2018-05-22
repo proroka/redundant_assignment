@@ -163,7 +163,7 @@ def show_edge_time_covariance(graph, ax=None):
   plt.colorbar(p, ax=ax)
 
 
-def show_average_edge_times(graph, ax=None):
+def _normalize_graph(graph):
   attrs = set(graph.nodes(data=True)[0].keys())
   if 'pos' in attrs:
     pos_x = {}
@@ -175,7 +175,6 @@ def show_average_edge_times(graph, ax=None):
     print(pos_x, pos_y)
     nx.set_node_attributes(graph, 'x', pos_x)
     nx.set_node_attributes(graph, 'y', pos_y)
-
   if 'x' not in attrs:
     pos = nx.spring_layout(graph)
     pos_x = {}
@@ -185,6 +184,10 @@ def show_average_edge_times(graph, ax=None):
       pos_y[u] = y
     nx.set_node_attributes(graph, 'x', pos_x)
     nx.set_node_attributes(graph, 'y', pos_y)
+
+
+def show_average_edge_times(graph, ax=None, monochrome=False, num_hubs=10):
+  _normalize_graph(graph)
 
   max_time = 0.
   min_time = float('inf')
@@ -207,15 +210,15 @@ def show_average_edge_times(graph, ax=None):
   points = np.array(points, np.float32)
   if ax is None:
     ax = plt.gca()
-  ax.scatter(points[:, 0], points[:, 1], c=(.8, .8, .8), edgecolors='k', zorder=2)
+  ax.scatter(points[:, 0], points[:, 1], c=(.8, .8, .8), edgecolors='k', zorder=3)
 
   # Plot hubs.
   points = []
-  for i in range(10):
+  for i in range(num_hubs):
     data = graph.nodes(data=True)[i]
     points.append([data['x'], data['y']])
   points = np.array(points, np.float32)
-  ax.scatter(points[:, 0], points[:, 1], c='r', edgecolors='k', zorder=2)
+  ax.scatter(points[:, 0], points[:, 1], c='r', edgecolors='k', zorder=4)
 
   for u, v, data in graph.edges(data=True):
     # If it has a geometry attribute (ie, a list of line segments)
@@ -237,7 +240,10 @@ def show_average_edge_times(graph, ax=None):
       min_y = min(min(y1, y2), min_y)
       line = [(x1, y1), (x2, y2)]
       lines.append(line)
-    route_colors.append(cmap((data['mean_time'] - min_time) / (max_time - min_time)))
+    if monochrome:
+      route_colors.append([.5, .5, .5])
+    else:
+      route_colors.append(cmap((data['mean_time'] - min_time) / (max_time - min_time)))
   lc = LineCollection(lines, colors=route_colors, linewidths=1.5, alpha=0.5, zorder=1)
   ax.add_collection(lc)
   margin_x = (max_x - min_x) * .02
@@ -254,6 +260,35 @@ def show_average_edge_times(graph, ax=None):
   xaxis.set_visible(False)
   yaxis.set_visible(False)
   ax.set_aspect('equal')
-  cax = ax.imshow([[min_time, max_time]], vmin=min_time, vmax=max_time, visible=False, cmap=cmap)  # This won't show.
-  cbar = plt.colorbar(cax, ax=ax, ticks=[min_time, max_time])
-  cbar.ax.set_yticklabels(['%d [s]' % min_time, '%d [s]' % max_time])
+  if not monochrome:
+    cax = ax.imshow([[min_time, max_time]], vmin=min_time, vmax=max_time, visible=False, cmap=cmap)  # This won't show.
+    cbar = plt.colorbar(cax, ax=ax, ticks=[min_time, max_time])
+    cbar.ax.set_yticklabels(['%d [s]' % min_time, '%d [s]' % max_time])
+
+
+def show_node(graph, node, ax=None):
+  _normalize_graph(graph)
+  x = graph.node[node]['x']
+  y = graph.node[node]['y']
+  if ax is None:
+    ax = plt.gca()
+  ax.scatter([x], [y], c='g', edgecolors='k', zorder=4)
+
+
+def show_route(graph, nodes, ax=None):
+  _normalize_graph(graph)
+
+  lines = []
+  route_colors = []
+  for u, v in zip(nodes, nodes[1:]):
+    x1 = graph.node[u]['x']
+    y1 = graph.node[u]['y']
+    x2 = graph.node[v]['x']
+    y2 = graph.node[v]['y']
+    line = [(x1, y1), (x2, y2)]
+    lines.append(line)
+    route_colors.append([1., .1, .1])
+  lc = LineCollection(lines, colors=route_colors, linewidths=2., zorder=2)
+  if ax is None:
+    ax = plt.gca()
+  ax.add_collection(lc)

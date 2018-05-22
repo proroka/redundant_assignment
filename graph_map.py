@@ -92,8 +92,19 @@ class GraphMap(object):
   def show_covariance(self, ax=None):
     util.show_edge_time_covariance(self._graph, ax)
 
-  def show_mean(self, ax=None):
-    util.show_average_edge_times(self._graph, ax)
+  def show_mean(self, ax=None, num_hubs=10):
+    util.show_average_edge_times(self._graph, ax, num_hubs=num_hubs)
+
+  def show(self, ax=None, num_hubs=10):
+    util.show_average_edge_times(self._graph, ax, monochrome=True, num_hubs=num_hubs)
+
+  def show_path(self, agent, task, path_index):
+    assert path_index < self._topk
+    path = self.topk_paths(agent, task)[path_index]
+    util.show_route(self._graph, path)
+
+  def show_node(self, node):
+    util.show_node(self._graph, node)
 
 
 if __name__ == '__main__':

@@ -208,6 +208,10 @@ class Problem(object):
     self._aggregation = aggregation
     self.reset()
 
+  @property
+  def assignments(self):
+    return self._assignments
+
   def reset(self):
     self._samples = self._graph.sample(self._agents, self._tasks, self._num_samples)
     self._gt_sample = self._graph.sample(self._agents, self._tasks, self._num_groundtruth_samples)
@@ -259,21 +263,19 @@ class Problem(object):
 
 
 if __name__ == '__main__':
+  import matplotlib.pylab as plt
   import graph_map
-  import tqdm
 
   graph_size = 200
   num_agents = 25
-  num_tasks = 5
+  num_tasks = 1
   deployment = 20
-  top_k = 3
+  top_k = 4
   num_samples = 200
-  gt_num_samples = 10
-  num_loops = 10
+  gt_num_samples = 1
 
-  covariance_sparsity = .3
   covariance_strengh = .9
-  num_hubs = 5
+  num_hubs = 2
 
   graph = graph_map.GraphMap(graph_size, top_k, largest_correlation=covariance_strengh)
   agents = np.random.randint(num_hubs, size=num_agents)
@@ -283,22 +285,22 @@ if __name__ == '__main__':
                     num_groundtruth_samples=gt_num_samples,
                     aggregation=MinimumAggregation())
 
-  # Solve n times.
-  results = {
-      'lower_bound': ([], []),
-      'hungarian': ([], []),
-      'repeated_hungarian': ([], []),
-      'greedy': ([], []),
-      'random': ([], []),
-      'no_correlation_greedy': ([], []),
-  }
-  for _ in tqdm.tqdm(range(num_loops)):
-    problem.reset()
-    for algorithm, (costs, correlations) in results.items():
-      cost = getattr(problem, algorithm)(deployment)
-      correlation = problem.get_correlation()
-      costs.extend(cost)
-      correlations.append(correlation)
+  j = 0
 
-  for algorithm, (costs, correlations) in results.items():
-    print('Cost (%s): %g - correlation: %g' % (algorithm, np.mean(costs), np.mean(correlations)))
+  problem.greedy(deployment)
+  assignments = problem.assignments
+  plt.figure()
+  graph.show(num_hubs=num_hubs)
+  graph.show_node(tasks[j])
+  for i, k in assignments[j]:
+    graph.show_path(agents[i], tasks[j], k)
+
+  problem.repeated_hungarian(deployment)
+  assignments = problem.assignments
+  plt.figure()
+  graph.show(num_hubs=num_hubs)
+  graph.show_node(tasks[j])
+  for i, k in assignments[j]:
+    graph.show_path(agents[i], tasks[j], k)
+
+  plt.show()
