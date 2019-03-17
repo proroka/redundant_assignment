@@ -28,7 +28,6 @@ _DEFAULT_LINESTYLE = '-'
 _COLORS = {
     'lower_bound': 'black',
     'greedy': 'red',
-    'no_correlation_greedy': 'green',
     'hungarian': 'black',
     'repeated_hungarian': 'orange',
     'random': 'blue',
@@ -38,7 +37,6 @@ _ORDER_AS = [
     'hungarian',
     'random',
     'repeated_hungarian',
-    'no_correlation_greedy',
     'greedy',
     'lower_bound',
 ]
