@@ -199,13 +199,15 @@ def _average_coalition_correlation(graph, assignments, agents, tasks):
 class Problem(object):
 
   def __init__(self, graph, agents, tasks, num_samples=10, num_groundtruth_samples=1,
-               aggregation=MinimumAggregation()):
+               aggregation=MinimumAggregation(), edge_uncertainty=True, node_uncertainty=False):
     self._graph = graph
     self._agents = agents
     self._tasks = tasks
     self._num_samples = num_samples
-    self._num_groundtruth_samples = num_groundtruth_samples
+    self._num_groundtruth_samples = num_groundtruth_samples if edge_uncertainty else 1
     self._aggregation = aggregation
+    self._edge_uncertainty = edge_uncertainty
+    self._node_uncertainty = node_uncertainty
     self.reset()
 
   @property
@@ -213,8 +215,12 @@ class Problem(object):
     return self._assignments
 
   def reset(self):
-    self._samples = self._graph.sample(self._agents, self._tasks, self._num_samples)
-    self._gt_sample = self._graph.sample(self._agents, self._tasks, self._num_groundtruth_samples)
+    if self._edge_uncertainty:
+      self._samples = self._graph.sample(self._agents, self._tasks, self._num_samples, node_uncertainty=self._node_uncertainty)
+      self._gt_sample = self._graph.sample(self._agents, self._tasks, self._num_groundtruth_samples, node_uncertainty=False)
+    else:
+      self._samples = self._graph.sample(self._agents, self._tasks, self._num_samples, edge_uncertainty=False, node_uncertainty=self._node_uncertainty)
+      self._gt_sample = self._graph.sample(self._agents, self._tasks, self._num_groundtruth_samples, edge_uncertainty=False, node_uncertainty=False, reuse_samples=True)
 
   def lower_bound(self, deployment_size=0):
     costs = np.zeros(self._num_groundtruth_samples, np.float32)
@@ -246,6 +252,7 @@ class Problem(object):
                           aggregation=self._aggregation, samples=self._gt_sample)
 
   def no_correlation_greedy(self, deployment_size):
+    assert self._edge_uncertainty
     samples = self._graph.sample(self._agents, self._tasks, self._num_samples, ignore_correlations=True)
     self._assignments = _greedy_dp(self._graph, deployment_size, self._agents, self._tasks,
                                    aggregation=self._aggregation, samples=samples)
@@ -266,24 +273,30 @@ if __name__ == '__main__':
   import matplotlib.pylab as plt
   import graph_map
 
+  edge_uncertainty = False
+  node_uncertainty = True
+
   graph_size = 200
   num_agents = 25
   num_tasks = 1
   deployment = 20
-  top_k = 4
+  top_k = 4 if edge_uncertainty else 1
+  closest_k = 4 if node_uncertainty else 0
   num_samples = 200
   gt_num_samples = 1
 
   covariance_strengh = .9
   num_hubs = 2
 
-  graph = graph_map.GraphMap(graph_size, top_k, largest_correlation=covariance_strengh)
+  graph = graph_map.GraphMap(graph_size, top_k, largest_correlation=covariance_strengh, closest_k=closest_k)
   agents = np.random.randint(num_hubs, size=num_agents)
   tasks = np.random.randint(num_hubs, graph.num_nodes, size=num_tasks)
 
   problem = Problem(graph, agents, tasks, num_samples=num_samples,
                     num_groundtruth_samples=gt_num_samples,
-                    aggregation=MinimumAggregation())
+                    aggregation=MinimumAggregation(),
+                    edge_uncertainty=edge_uncertainty,
+                    node_uncertainty=node_uncertainty)
 
   j = 0
 
