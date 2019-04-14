@@ -25,7 +25,7 @@ _NUM_NODES = 200
 _NUM_GRAPHS = 500
 _NUM_SAMPLES = 200
 _NUM_SAMPLES_GT = 10
-_NUM_THREADS = 24
+_NUM_THREADS = 32
 
 # Variable.
 _CORRELATION_STRENGTH = np.linspace(.1, .9, 9).tolist()
