@@ -31,6 +31,7 @@ _COLORS = {
     'hungarian': 'black',
     'repeated_hungarian': 'orange',
     'random': 'blue',
+    'closest': 'magenta',
 }
 
 _ORDER_AS = [
@@ -39,6 +40,7 @@ _ORDER_AS = [
     'repeated_hungarian',
     'greedy',
     'lower_bound',
+    'closest',
 ]
 
 
@@ -123,6 +125,7 @@ def run(filename):
       k = argument_class(**{x_axis_label: x_axis_value})
       u = data[k][_UPPER_BOUND].costs
       for algorithm, values in data[k].items():
+        print(algorithm)
         y = values.costs / (u + 1e-10)
         if algorithm == _LOWER_BOUND and y_cost_values[algorithm] and x_axis_label == 'deployment_size':
           y_cost_values[algorithm].append(y_cost_values[algorithm][-1])

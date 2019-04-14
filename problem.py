@@ -79,6 +79,38 @@ def _repeated_hungarian(graph, deployment_size, agents, tasks, num_samples=10,
   return task_assignments
 
 
+def _closest(graph, deployment_size, agents, tasks, num_samples=10,
+             aggregation=MinimumAggregation(), samples=None):
+  num_agents = len(agents)
+  num_tasks = len(tasks)
+
+  # Samples.
+  num_samples, samples = _get_samples(graph, agents, tasks, num_samples, samples)
+  mean_travel = np.mean(samples, axis=-1)
+
+  # Run Hungarian assignment on the average travel times of the fastest path.
+  task_assignments = _hungarian(graph, agents, tasks, aggregation=aggregation, samples=samples)
+  available_agents = set(range(num_agents))
+  for j, assignment in task_assignments.items():
+    assert len(assignment) == 1, 'Hungarian issue'
+    i, _ = assignment[0]
+    available_agents.remove(i)
+
+  # Repeat until we reach the desired deployment size.
+  for i in available_agents:
+    min_distance_to_task = float('inf')
+    best_j = 0
+    best_k = 0
+    for j in range(num_tasks):
+      for k in range(graph.top_k):
+        if mean_travel[i, j, k] < min_distance_to_task:
+          min_distance_to_task = mean_travel[i, j, k]
+          best_j = j
+          best_k = k
+    task_assignments[best_j].append((i, best_k))
+  return task_assignments
+
+
 def _greedy_dp(graph, deployment_size, agents, tasks, num_samples=10,
                aggregation=MinimumAggregation(), samples=None):
   num_agents = len(agents)
@@ -245,6 +277,12 @@ class Problem(object):
     return _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
                           aggregation=self._aggregation, samples=self._gt_sample)
 
+  def closest(self, deployment_size):
+    self._assignments = _closest(self._graph, deployment_size, self._agents, self._tasks,
+                                 aggregation=self._aggregation, samples=self._samples)
+    return _compute_costs(self._graph, self._assignments, self._agents, self._tasks,
+                          aggregation=self._aggregation, samples=self._gt_sample)
+
   def greedy(self, deployment_size):
     self._assignments = _greedy_dp(self._graph, deployment_size, self._agents, self._tasks,
                                    aggregation=self._aggregation, samples=self._samples)
@@ -273,8 +311,8 @@ if __name__ == '__main__':
   import matplotlib.pylab as plt
   import graph_map
 
-  edge_uncertainty = False
-  node_uncertainty = True
+  edge_uncertainty = True
+  node_uncertainty = False
 
   graph_size = 200
   num_agents = 25
@@ -308,7 +346,7 @@ if __name__ == '__main__':
   for i, k in assignments[j]:
     graph.show_path(agents[i], tasks[j], k)
 
-  problem.repeated_hungarian(deployment)
+  problem.closest(deployment)
   assignments = problem.assignments
   plt.figure()
   graph.show(num_hubs=num_hubs)
