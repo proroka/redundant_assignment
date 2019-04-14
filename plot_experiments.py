@@ -40,9 +40,9 @@ _COLORS = {
 _ORDER_AS = [
     'hungarian',
     'random',
-    'repeated_hungarian',
-    'no_correlation_greedy',
-    'greedy',
+    # 'repeated_hungarian',
+    # 'no_correlation_greedy',
+    # 'greedy',
     'lower_bound',
     'closest',
 ]
@@ -132,7 +132,6 @@ def run(filename):
       k = argument_class(**{x_axis_label: x_axis_value})
       u = data[k][_UPPER_BOUND].costs
       for algorithm, values in data[k].items():
-        print(algorithm)
         y = values.costs / (u + 1e-10)
         y_cost_values_all[algorithm].append(y)
         if algorithm == _LOWER_BOUND and y_cost_values[algorithm] and x_axis_label == 'deployment_size':
@@ -181,29 +180,28 @@ def run(filename):
 
 
   # Plot correlations only for the default set of values.
-  plt.figure()
-
-  for algorithm in ['random', 'repeated_hungarian', 'greedy']:
-    values = []
-    lowers = []
-    uppers = []
-    for c in np.linspace(.1, .9, 9).tolist():
-      k = launch_experiments.Arguments(correlation_strength=c)
-      v = data[k][algorithm].correlations
-      values.append(np.mean(v))
-      lower, upper = errors(v)
-      lowers.append(lower)
-      uppers.append(upper)
-    v = np.array(values, np.float32)
-    u = np.array(uppers, np.float32)
-    l = np.array(lowers, np.float32)
-    ls = _LINESTYLE[algorithm] if algorithm in _LINESTYLE else _DEFAULT_LINESTYLE
-    plt.plot(x_values, v, linestyle=ls, color=_COLORS[algorithm], lw=2, label=algorithm, marker='o', ms=8)
-    plt.fill_between(x_values, l, u, facecolor=_COLORS[algorithm], alpha=.5)
-  plt.xlabel(x_axis_label)
-  plt.xlabel('correlation_strength')
-  plt.ylabel('team_correlation')
-  plt.legend()
+  # plt.figure()
+  # for algorithm in ['random', 'repeated_hungarian', 'greedy']:
+  #   values = []
+  #   lowers = []
+  #   uppers = []
+  #   for c in np.linspace(.1, .9, 9).tolist():
+  #     k = launch_experiments.Arguments(correlation_strength=c)
+  #     v = data[k][algorithm].correlations
+  #     values.append(np.mean(v))
+  #     lower, upper = errors(v)
+  #     lowers.append(lower)
+  #     uppers.append(upper)
+  #   v = np.array(values, np.float32)
+  #   u = np.array(uppers, np.float32)
+  #   l = np.array(lowers, np.float32)
+  #   ls = _LINESTYLE[algorithm] if algorithm in _LINESTYLE else _DEFAULT_LINESTYLE
+  #   plt.plot(x_values, v, linestyle=ls, color=_COLORS[algorithm], lw=2, label=algorithm, marker='o', ms=8)
+  #   plt.fill_between(x_values, l, u, facecolor=_COLORS[algorithm], alpha=.5)
+  # plt.xlabel(x_axis_label)
+  # plt.xlabel('correlation_strength')
+  # plt.ylabel('team_correlation')
+  # plt.legend()
 
   plt.show(block=False)
   input('Hit ENTER to close figure')

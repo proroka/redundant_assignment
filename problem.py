@@ -97,7 +97,10 @@ def _closest(graph, deployment_size, agents, tasks, num_samples=10,
     available_agents.remove(i)
 
   # Repeat until we reach the desired deployment size.
-  for i in available_agents:
+  n = min(num_agents - num_tasks, deployment_size - num_tasks)
+  available_agents = list(available_agents)
+  np.random.shuffle(available_agents)
+  for i in available_agents[:n]:
     min_distance_to_task = float('inf')
     best_j = 0
     best_k = 0
