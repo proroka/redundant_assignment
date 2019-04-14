@@ -11,6 +11,8 @@ import numpy as np
 import scipy
 import scipy.stats as st
 from six.moves import input
+import pandas as pd
+import seaborn as sns
 
 import launch_experiments
 
@@ -32,6 +34,7 @@ _COLORS = {
     'hungarian': 'black',
     'repeated_hungarian': 'orange',
     'random': 'blue',
+    'closest': 'magenta',
 }
 
 _ORDER_AS = [
@@ -41,6 +44,7 @@ _ORDER_AS = [
     'no_correlation_greedy',
     'greedy',
     'lower_bound',
+    'closest',
 ]
 
 
@@ -119,6 +123,7 @@ def run(filename):
     x_values = sorted(x_axis_values)
 
     # Get y values.
+    y_cost_values_all = collections.defaultdict(list)
     y_cost_values = collections.defaultdict(list)
     y_cost_lowers = collections.defaultdict(list)
     y_cost_uppers = collections.defaultdict(list)
@@ -127,7 +132,9 @@ def run(filename):
       k = argument_class(**{x_axis_label: x_axis_value})
       u = data[k][_UPPER_BOUND].costs
       for algorithm, values in data[k].items():
+        print(algorithm)
         y = values.costs / (u + 1e-10)
+        y_cost_values_all[algorithm].append(y)
         if algorithm == _LOWER_BOUND and y_cost_values[algorithm] and x_axis_label == 'deployment_size':
           y_cost_values[algorithm].append(y_cost_values[algorithm][-1])
           y_cost_uppers[algorithm].append(y_cost_uppers[algorithm][-1])
@@ -153,20 +160,50 @@ def run(filename):
     plt.ylabel('cost')
     plt.legend()
 
-  # Plot correlations only for the default set of values.
-  y_corr_values = []
-  xticks = []
-  for algorithm in _ORDER_AS:
-    if algorithm in _IGNORE or algorithm in (_LOWER_BOUND, _UPPER_BOUND):
-      continue
-    xticks.append(algorithm)
-    y_corr_values.append(data[defaults][algorithm].correlations)
+    # Plot deployment size as a function of cost.
+    if x_axis_label == 'deployment_size':
+      plt.figure()
+      for algorithm in _ORDER_AS:
+        if algorithm in _IGNORE:
+          continue
+        if algorithm == 'lower_bound':
+          continue
+        if algorithm == 'hungarian':
+          continue
+        values = y_cost_values[algorithm]
+        v = np.array(values, np.float32)
+        ls = _LINESTYLE[algorithm] if algorithm in _LINESTYLE else _DEFAULT_LINESTYLE
+        improvement = (1. - np.array(v)) * 100.
+        plt.plot(improvement, x_values, linestyle=ls, color=_COLORS[algorithm], lw=2, label=algorithm, marker='o', ms=8)
+      plt.ylabel(x_axis_label)
+      plt.xlabel('improvement over hungarian [%]')
+      plt.legend()
 
+
+  # Plot correlations only for the default set of values.
   plt.figure()
-  x = np.arange(len(y_corr_values))
-  make_nice(plt.boxplot(y_corr_values, patch_artist=True, showfliers=False))
-  plt.ylabel('correlation')
-  plt.xticks(x + 1, xticks)
+
+  for algorithm in ['random', 'repeated_hungarian', 'greedy']:
+    values = []
+    lowers = []
+    uppers = []
+    for c in np.linspace(.1, .9, 9).tolist():
+      k = launch_experiments.Arguments(correlation_strength=c)
+      v = data[k][algorithm].correlations
+      values.append(np.mean(v))
+      lower, upper = errors(v)
+      lowers.append(lower)
+      uppers.append(upper)
+    v = np.array(values, np.float32)
+    u = np.array(uppers, np.float32)
+    l = np.array(lowers, np.float32)
+    ls = _LINESTYLE[algorithm] if algorithm in _LINESTYLE else _DEFAULT_LINESTYLE
+    plt.plot(x_values, v, linestyle=ls, color=_COLORS[algorithm], lw=2, label=algorithm, marker='o', ms=8)
+    plt.fill_between(x_values, l, u, facecolor=_COLORS[algorithm], alpha=.5)
+  plt.xlabel(x_axis_label)
+  plt.xlabel('correlation_strength')
+  plt.ylabel('team_correlation')
+  plt.legend()
 
   plt.show(block=False)
   input('Hit ENTER to close figure')

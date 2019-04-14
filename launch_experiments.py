@@ -22,7 +22,7 @@ _NUM_AGENTS = 25
 _NUM_HUBS = 10
 _NUM_TASKS = 5
 _NUM_NODES = 200
-_NUM_GRAPHS = 500
+_NUM_GRAPHS = 100
 _NUM_SAMPLES = 200
 _NUM_SAMPLES_GT = 10
 _NUM_THREADS = 24
@@ -72,10 +72,11 @@ def run_problem(filename, arguments):
   results = {
       'lower_bound': ([], []),
       'hungarian': ([], []),
-      'repeated_hungarian': ([], []),
-      'greedy': ([], []),
+      # 'repeated_hungarian': ([], []),
+      # 'greedy': ([], []),
       'random': ([], []),
-      'no_correlation_greedy': ([], []),
+      # 'no_correlation_greedy': ([], []),
+      'closest': ([], []),
   }
   p.reset()
   for algorithm, (costs, correlations) in results.items():
